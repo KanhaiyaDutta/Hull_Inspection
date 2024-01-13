@@ -1,6 +1,10 @@
-import 'dart:html' as html;
+import 'dart:html';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
+import 'package:image_picker_web/image_picker_web.dart';
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(MyApp());
@@ -9,13 +13,16 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Multiple Image Upload',
-      theme: ThemeData.light(),
-      debugShowCheckedModeBanner: false,
-      darkTheme: ThemeData.dark(),
-      themeMode: ThemeMode.system,
-      home: MyHomePage(),
+    return ChangeNotifierProvider(
+      create: (context) => ImageProvider(),
+      child: MaterialApp(
+        title: 'Image Uploader',
+        theme: ThemeData.light(),
+        darkTheme: ThemeData.dark(),
+        themeMode: ThemeMode.system,
+        debugShowCheckedModeBanner: false,
+        home: MyHomePage(),
+      ),
     );
   }
 }
@@ -26,17 +33,16 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  List<html.File> _imageFiles = [];
   bool _isDarkMode = false;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Multiple Image Upload',
+      title: 'Image Uploader',
       theme: _isDarkMode ? ThemeData.dark() : ThemeData.light(),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Multiple Image Upload'),
+          title: Text('Image Uploader'),
           actions: [
             Switch(
               value: _isDarkMode,
@@ -80,147 +86,154 @@ class _MyHomePageState extends State<MyHomePage> {
             ],
           ),
         ),
-        body: Column(
-          children: <Widget>[
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, // Set the number of images per row
-                  crossAxisSpacing: 8.0,
-                  mainAxisSpacing: 8.0,
-                ),
-                itemCount: _imageFiles.length,
-                itemBuilder: (context, index) {
-                  return Draggable<int>(
-                    data: index,
-                    feedback: Image.network(
-                      html.Url.createObjectUrlFromBlob(_imageFiles[index]),
-                      fit: BoxFit.cover,
+        body: Consumer<ImageProvider>(builder: (context, provider, child) {
+          return Column(children: [
+            Consumer<ImageProvider>(
+              builder: (context, provider, child) {
+                return Column(
+                  children: [
+                    DragTarget<List<Uint8List>>(
+                      onWillAccept: (data) {
+                        return true;
+                      },
+                      onAccept: (files) {
+                        provider.addImage(files);
+                      },
+                      builder: (context, candidateData, rejectedData) {
+                        return Container(
+                          height: 200,
+                          width: double.infinity,
+                          color: Colors.blue.withOpacity(0.2),
+                          child: Center(
+                            child: Text(
+                              'Drop images here',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    child: Image.network(
-                      html.Url.createObjectUrlFromBlob(_imageFiles[index]),
-                      fit: BoxFit.cover,
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                        ),
+                        itemCount: provider.selectedImages.length,
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              Image.memory(provider.selectedImages[index]),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.close_sharp,
+                                    color: Colors.black87,
+                                  ),
+                                  onPressed: () {
+                                    provider.removeImage(index);
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  );
-                },
-              ),
+                    SizedBox(
+                      height: 100,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              provider.pickImages();
+                            },
+                            child: Text('Pick Images'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              provider.uploadImages();
+                            },
+                            child: Text('Upload Images'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    //For Recieved Images
+                    // Expanded(
+                    //   child: GridView.builder(
+                    //     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    //       crossAxisCount: 3,
+                    //     ),
+                    //     itemCount: provider.uploadedImages.length,
+                    //     itemBuilder: (context, index) {
+                    //       return Image.network(provider.uploadedImages[index]);
+                    //     },
+                    //   ),
+                    // ),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  ElevatedButton(
-                    onPressed: () => _getImages(),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondary),
-                    child: const Text(
-                      'Select Images',
-                      style: TextStyle(color: Colors.blue),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => _getImages(),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondary),
-                    child: const Text(
-                      'Capture Images',
-                      style: TextStyle(color: Colors.blue),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _uploadImages,
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor),
-                    child: const Text(
-                      'Send',
-                      style: TextStyle(color: Colors.blue),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _buildDragTarget(),
-          ],
-        ),
+          ]);
+        }),
       ),
     );
   }
+}
 
-  Widget _buildDragTarget() {
-    return DragTarget<int>(
-      builder: (BuildContext context, List<int?> candidateData,
-          List<dynamic> rejectedData) {
-        return Container(
-          color: Colors.grey[200],
-          height: 100.0,
-          child: const Center(
-            child: Text(
-              'Drag and drop images here',
-              style: TextStyle(fontSize: 16.0, color: Colors.blue),
-            ),
-          ),
-        );
-      },
-      onAccept: (int? data) {
-        // Handle the dropped item
-        if (data != null && data >= 0 && data < _imageFiles.length) {
-          // Update the _imageFiles list with the dropped image
-          setState(() {
-            _imageFiles.add(_imageFiles[data]);
+class ImageProvider with ChangeNotifier {
+  List<Uint8List> selectedImages = [];
+  List<String> uploadedImages = [];
+  Future<void> pickImages() async {
+    try {
+      final files = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: true,
+      );
+      if (files != null) {
+        for (var file in files.files) {
+          final reader = FileReader();
+          reader.onLoadEnd.listen((_) {
+            selectedImages.add(reader.result as Uint8List);
+            notifyListeners();
           });
+          reader.readAsArrayBuffer(Blob([file.bytes]));
         }
-      },
-    );
-  }
-
-  Future<void> _getImages() async {
-    html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
-    uploadInput.multiple = true; // Allow multiple file selection
-    uploadInput.accept = 'image/*'; // Set accepted file types
-
-    uploadInput.click();
-
-    uploadInput.onChange.listen((e) {
-      final files = uploadInput.files;
-      if (files != null && files.isNotEmpty) {
-        setState(() {
-          _imageFiles += files;
-        });
       }
-    });
+    } on PlatformException catch (e) {
+      print('Failed to pick images: $e');
+    }
   }
 
-  Future<void> _uploadImages() async {
-    //   if (_imageFiles.isEmpty) {
-    //     // Handle case when no images are selected
-    //     return;
-    //   }
+  void addImage(List<Uint8List> files) {
+    for (var file in files) {
+      final reader = FileReader();
+      reader.onLoadEnd.listen((_) {
+        selectedImages.add(reader.result as Uint8List);
+        notifyListeners();
+      });
+      reader.readAsArrayBuffer(Blob(file));
+    }
+  }
 
-    //   // Replace 'YOUR_API_ENDPOINT' with your actual API endpoint
-    //   var url = Uri.parse('YOUR_API_ENDPOINT');
+  void removeImage(int index) {
+    selectedImages.removeAt(index);
+    notifyListeners();
+  }
 
-    //   // Create a multipart request
-    //   var request = http.MultipartRequest('POST', url);
+  Future<void> uploadImages() async {
+    // API call to upload images
+    // ...
 
-    //   // Attach each image to the request
-    //   for (int i = 0; i < _imageFiles.length; i++) {
-    //     request.files.add(http.MultipartFile.fromBytes('image$i', _imageFiles[i].slice(), filename: _imageFiles[i].name));
-    //   }
-
-    //   // Send the request
-    //   var response = await request.send();
-
-    //   // Check the status code of the response
-    //   if (response.statusCode == 200) {
-    //     // Images uploaded successfully
-    //     print('Images uploaded successfully!');
-    //   } else {
-    //     // Handle the error
-    //     print('Failed to upload images. Status code: ${response.statusCode}');
-    //   }
+    // Dummy response
+    uploadedImages = ['image1.jpg', 'image2.jpg', 'image3.jpg'];
+    notifyListeners();
   }
 }
