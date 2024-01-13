@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker_web/image_picker_web.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(MyApp());
@@ -42,7 +41,7 @@ class _MyHomePageState extends State<MyHomePage> {
       theme: _isDarkMode ? ThemeData.dark() : ThemeData.light(),
       home: Scaffold(
         appBar: AppBar(
-          title: Text('Image Uploader'),
+          title: Text('Hull Inspection'),
           actions: [
             Switch(
               value: _isDarkMode,
@@ -71,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ),
               ListTile(
-                title: const Text('AR/VR Visualization'),
+                title: const Text('AR/V Visualization'),
                 onTap: () {
                   // Handle drawer item tap
                 },
@@ -86,103 +85,75 @@ class _MyHomePageState extends State<MyHomePage> {
             ],
           ),
         ),
-        body: Consumer<ImageProvider>(builder: (context, provider, child) {
-          return Column(children: [
-            Consumer<ImageProvider>(
-              builder: (context, provider, child) {
-                return Column(
-                  children: [
-                    DragTarget<List<Uint8List>>(
-                      onWillAccept: (data) {
-                        return true;
-                      },
-                      onAccept: (files) {
-                        provider.addImage(files);
-                      },
-                      builder: (context, candidateData, rejectedData) {
-                        return Container(
-                          height: 200,
-                          width: double.infinity,
-                          color: Colors.blue.withOpacity(0.2),
-                          child: Center(
-                            child: Text(
-                              'Drop images here',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+        body: Consumer<ImageProvider>(
+          builder: (context, provider, child) {
+            return Column(
+              children: [
+                Expanded(
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                    ),
+                    itemCount: provider.selectedImages.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          Image.memory(provider.selectedImages[index]),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.close_sharp,
+                                color: Colors.black87,
                               ),
+                              onPressed: () {
+                                provider.removeImage(index);
+                              },
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    Expanded(
-                      child: GridView.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                        ),
-                        itemCount: provider.selectedImages.length,
-                        itemBuilder: (context, index) {
-                          return Stack(
-                            children: [
-                              Image.memory(provider.selectedImages[index]),
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: IconButton(
-                                  icon: Icon(
-                                    Icons.close_sharp,
-                                    color: Colors.black87,
-                                  ),
-                                  onPressed: () {
-                                    provider.removeImage(index);
-                                  },
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                    SizedBox(
-                      height: 100,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              provider.pickImages();
-                            },
-                            child: Text('Pick Images'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              provider.uploadImages();
-                            },
-                            child: Text('Upload Images'),
-                          ),
                         ],
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(
+                  height: 100,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          provider.pickImages();
+                        },
+                        child: Text('Pick Images'),
                       ),
-                    ),
+                      ElevatedButton(
+                        onPressed: () {
+                          provider.uploadImages();
+                        },
+                        child: Text('Upload Images'),
+                      ),
+                    ],
+                  ),
+                ),
 
-                    //For Recieved Images
-                    // Expanded(
-                    //   child: GridView.builder(
-                    //     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    //       crossAxisCount: 3,
-                    //     ),
-                    //     itemCount: provider.uploadedImages.length,
-                    //     itemBuilder: (context, index) {
-                    //       return Image.network(provider.uploadedImages[index]);
-                    //     },
-                    //   ),
-                    // ),
-                  ],
-                );
-              },
-            ),
-          ]);
-        }),
+                //For Recieved Images
+                // Expanded(
+                //   child: GridView.builder(
+                //     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                //       crossAxisCount: 3,
+                //     ),
+                //     itemCount: provider.uploadedImages.length,
+                //     itemBuilder: (context, index) {
+                //       return Image.network(provider.uploadedImages[index]);
+                //     },
+                //   ),
+                // ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -191,21 +162,13 @@ class _MyHomePageState extends State<MyHomePage> {
 class ImageProvider with ChangeNotifier {
   List<Uint8List> selectedImages = [];
   List<String> uploadedImages = [];
+
   Future<void> pickImages() async {
     try {
-      final files = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: true,
-      );
-      if (files != null) {
-        for (var file in files.files) {
-          final reader = FileReader();
-          reader.onLoadEnd.listen((_) {
-            selectedImages.add(reader.result as Uint8List);
-            notifyListeners();
-          });
-          reader.readAsArrayBuffer(Blob([file.bytes]));
-        }
+      final images = await ImagePickerWeb.getMultiImagesAsBytes();
+      if (images != null) {
+        selectedImages.addAll(images);
+        notifyListeners();
       }
     } on PlatformException catch (e) {
       print('Failed to pick images: $e');
