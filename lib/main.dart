@@ -1,102 +1,96 @@
 import 'dart:html';
-
+import 'package:hull_inspection/providers/image_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker_web/image_picker_web.dart';
+import 'package:hull_inspection/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:hull_inspection/result.dart';
 
 void main() {
+  Provider.debugCheckInvalidValueType = null;
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => ImageProvider(),
-      child: MaterialApp(
-        title: 'Image Uploader',
-        theme: ThemeData.light(),
-        darkTheme: ThemeData.dark(),
-        themeMode: ThemeMode.system,
-        debugShowCheckedModeBanner: false,
-        home: MyHomePage(),
+    return MultiProvider(
+      providers: [
+        Provider<ImagesProvider>(create: (context) => ImagesProvider()),
+        Provider<ThemeProvider>(create: (context) => ThemeProvider())
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, provider, _) => MaterialApp(
+          routes: {
+            MyHomePage.route: (context) => MyHomePage(),
+            ResultPage.route: (context) => ResultPage(),
+          },
+          title: 'Image Uploader',
+          theme: provider.themeData,
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
+  static const route = '/';
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _isDarkMode = false;
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Image Uploader',
-      theme: _isDarkMode ? ThemeData.dark() : ThemeData.light(),
-      home: Scaffold(
-        appBar: AppBar(
-          title: Text('Hull Inspection'),
-          actions: [
-            Switch(
-              value: _isDarkMode,
-              onChanged: (value) {
-                setState(() {
-                  _isDarkMode = value;
-                });
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Hull Inspection'),
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+              ),
+              child: const Text(
+                'Drawer Header',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            ListTile(
+              title: const Text('AR/V Visualization'),
+              onTap: () {
+                // Handle drawer item tap
               },
             ),
+            ListTile(
+              title: const Text('Item 2'),
+              onTap: () {
+                // Handle drawer item tap
+              },
+            ),
+            // Add more ListTile widgets for additional drawer items
           ],
         ),
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
+      ),
+      body: Consumer<ImagesProvider>(
+        builder: (context, provider, child) {
+          return Column(
             children: [
-              DrawerHeader(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor,
-                ),
-                child: const Text(
-                  'Drawer Header',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
                   ),
-                ),
-              ),
-              ListTile(
-                title: const Text('AR/V Visualization'),
-                onTap: () {
-                  // Handle drawer item tap
-                },
-              ),
-              ListTile(
-                title: const Text('Item 2'),
-                onTap: () {
-                  // Handle drawer item tap
-                },
-              ),
-              // Add more ListTile widgets for additional drawer items
-            ],
-          ),
-        ),
-        body: Consumer<ImageProvider>(
-          builder: (context, provider, child) {
-            return Column(
-              children: [
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 5,
-                    ),
-                    itemCount: provider.selectedImages.length,
-                    itemBuilder: (context, index) {
-                      return Stack(
+                  itemCount: provider.selectedImages.length,
+                  itemBuilder: (context, index) {
+                    return Center(
+                      child: Stack(
                         children: [
                           Image.memory(provider.selectedImages[index]),
                           Positioned(
@@ -113,90 +107,49 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                           ),
                         ],
-                      );
-                    },
-                  ),
-                ),
-                SizedBox(
-                  height: 100,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          provider.pickImages();
-                        },
-                        child: Text('Pick Images'),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          provider.uploadImages();
-                        },
-                        child: Text('Upload Images'),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
+              ),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        provider.pickImages();
+                      },
+                      child: Text('Pick Images'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        provider.uploadImages();
+                        Navigator.pushNamed(context, ResultPage.route);
+                      },
+                      child: Text('Upload Images'),
+                    ),
+                  ],
+                ),
+              ),
 
-                //For Recieved Images
-                // Expanded(
-                //   child: GridView.builder(
-                //     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                //       crossAxisCount: 3,
-                //     ),
-                //     itemCount: provider.uploadedImages.length,
-                //     itemBuilder: (context, index) {
-                //       return Image.network(provider.uploadedImages[index]);
-                //     },
-                //   ),
-                // ),
-              ],
-            );
-          },
-        ),
+              //For Recieved Images
+              // Expanded(
+              //   child: GridView.builder(
+              //     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              //       crossAxisCount: 3,
+              //     ),
+              //     itemCount: provider.uploadedImages.length,
+              //     itemBuilder: (context, index) {
+              //       return Image.network(provider.uploadedImages[index]);
+              //     },
+              //   ),
+              // ),
+            ],
+          );
+        },
       ),
     );
-  }
-}
-
-class ImageProvider with ChangeNotifier {
-  List<Uint8List> selectedImages = [];
-  List<String> uploadedImages = [];
-
-  Future<void> pickImages() async {
-    try {
-      final images = await ImagePickerWeb.getMultiImagesAsBytes();
-      if (images != null) {
-        selectedImages.addAll(images);
-        notifyListeners();
-      }
-    } on PlatformException catch (e) {
-      print('Failed to pick images: $e');
-    }
-  }
-
-  void addImage(List<Uint8List> files) {
-    for (var file in files) {
-      final reader = FileReader();
-      reader.onLoadEnd.listen((_) {
-        selectedImages.add(reader.result as Uint8List);
-        notifyListeners();
-      });
-      reader.readAsArrayBuffer(Blob(file));
-    }
-  }
-
-  void removeImage(int index) {
-    selectedImages.removeAt(index);
-    notifyListeners();
-  }
-
-  Future<void> uploadImages() async {
-    // API call to upload images
-    // ...
-
-    // Dummy response
-    uploadedImages = ['image1.jpg', 'image2.jpg', 'image3.jpg'];
-    notifyListeners();
   }
 }
